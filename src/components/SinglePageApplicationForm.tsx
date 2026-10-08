@@ -14,9 +14,10 @@ import {
 } from '../types';
 import { BUSINESS_TYPES, getRequiredDocumentsForFlow } from '../data/businessTypes';
 import { submitApplication, ValidationErrorItem } from '../services/applicationService';
+import { createOrLinkCustomerAccount } from '../services/authService';
 import { SubmissionSuccess } from './SubmissionSuccess';
 import { INDIAN_STATES } from './wizard/ApplicantDetailsStep';
-import logoImage from '../assets/images/nagu_enterprises_logo_1791472953152.jpg';
+import logoImage from '../assets/images/nagu_emblem_clean_1791478386994.jpg';
 import { 
   Building2, 
   UserCheck, 
@@ -678,13 +679,17 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
       localErrors.ownerMobile = 'Valid 10-digit owner mobile is required';
     }
 
-    // Mandatory documents
-    mandatoryDocDefs.forEach(docDef => {
+    // Mandatory documents validation based on business entity
+    const missingMandatoryDocs = mandatoryDocDefs.filter(docDef => {
       const uploaded = documents.find(d => d.docDefId === docDef.id);
-      if (!uploaded || !uploaded.fileName) {
-        localErrors[`doc_${docDef.id}`] = `Mandatory document required: ${docDef.title}`;
-      }
+      return !uploaded || !uploaded.fileName;
     });
+
+    if (missingMandatoryDocs.length > 0) {
+      missingMandatoryDocs.forEach(docDef => {
+        localErrors[`doc_${docDef.id}`] = `Mandatory document required for ${selectedType.name}: ${docDef.title}`;
+      });
+    }
 
     // Declaration checkboxes
     if (!declarationConfirmed1 || !declarationConfirmed2 || !declarationConfirmed3) {
@@ -696,7 +701,16 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
 
     if (Object.keys(localErrors).length > 0) {
       setFieldErrors(localErrors);
-      setSubmitError(`Please review and resolve the ${Object.keys(localErrors).length} required field(s) highlighted in red.`);
+      if (missingMandatoryDocs.length > 0) {
+        setSubmitError(`Document Validation Notice: Please upload all ${missingMandatoryDocs.length} mandatory document(s) required for ${selectedType.name} in Section 7 before submitting.`);
+        const docSection = document.getElementById('section-documents');
+        if (docSection) {
+          docSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+      } else {
+        setSubmitError(`Please review and resolve the ${Object.keys(localErrors).length} required field(s) highlighted in red.`);
+      }
       // Scroll to the first error
       window.scrollTo({ top: 380, behavior: 'smooth' });
       return;
@@ -725,6 +739,17 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
       });
 
       if (res.success && res.application) {
+        // Automatically provision or link client account for Customer Portal
+        try {
+          await createOrLinkCustomerAccount({
+            fullName: applicant.fullName,
+            email: applicant.email,
+            mobile: applicant.mobile,
+          });
+        } catch (authErr) {
+          console.warn('Customer account linking notice:', authErr);
+        }
+
         // Clear draft
         localStorage.removeItem('nagu_registration_draft_v1');
         setSubmittedApp(res.application);
@@ -786,11 +811,11 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
             
             {/* Left Brand Area */}
             <div className="flex items-start gap-4">
-              <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md ring-1 ring-blue-900/10 shrink-0 bg-white">
+              <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md ring-1 ring-blue-900/10 shrink-0 bg-white flex items-center justify-center">
                 <img
                   src={logoImage}
-                  alt="Nagu Enterprises Official Crest"
-                  className="w-full h-full object-cover object-center transform scale-110"
+                  alt="Nagu Enterprises Official Logo"
+                  className="w-full h-full object-contain p-1"
                 />
               </div>
               <div className="space-y-1">
@@ -2167,7 +2192,7 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
           {/* -------------------------------------------------------------
               SECTION 7: DOCUMENT UPLOADS & ATTACHMENTS (DYNAMIC CHECKLIST)
               ------------------------------------------------------------- */}
-          <div className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
+          <div id="section-documents" className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden scroll-mt-24">
             <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-3">
                 <span className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
@@ -2196,6 +2221,45 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
 
             <div className="p-6 space-y-4">
               
+              {/* Mandatory document verification banner based on selected entity */}
+              {mandatoryDocDefs.length > 0 && (
+                <div className={`p-4 rounded-xl border flex items-start gap-3 transition-colors ${
+                  uploadedMandatoryCount === mandatoryDocDefs.length
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-amber-50 border-amber-200 text-amber-900'
+                }`}>
+                  {uploadedMandatoryCount === mandatoryDocDefs.length ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="text-xs space-y-1">
+                    <div className="font-bold flex items-center gap-2">
+                      <span>
+                        {uploadedMandatoryCount === mandatoryDocDefs.length
+                          ? `Mandatory Documents Verified for ${selectedType.name}`
+                          : `Mandatory Document Verification: ${selectedType.name}`}
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        uploadedMandatoryCount === mandatoryDocDefs.length
+                          ? 'bg-emerald-200 text-emerald-800'
+                          : 'bg-amber-200 text-amber-800'
+                      }`}>
+                        {uploadedMandatoryCount}/{mandatoryDocDefs.length} Uploaded
+                      </span>
+                    </div>
+                    <p className={uploadedMandatoryCount === mandatoryDocDefs.length ? 'text-emerald-700' : 'text-amber-800'}>
+                      {uploadedMandatoryCount === mandatoryDocDefs.length
+                        ? 'All statutory document requirements are satisfied. You may proceed to submit your application.'
+                        : `Client validation requirement: Please upload the remaining mandatory document(s) before submission: ${mandatoryDocDefs
+                            .filter(d => !documents.some(doc => doc.docDefId === d.id && doc.fileName))
+                            .map(d => d.title)
+                            .join(', ')}.`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="text-xs text-slate-600 flex items-center justify-between pb-2 border-b border-slate-100">
                 <span>
                   Checklist based on <strong>{selectedType.name}</strong> ({office.officeType.toUpperCase()} Office):
@@ -2435,9 +2499,22 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
               <h4 className="text-base font-bold text-white font-display">
                 Ready to file your {selectedType.name}?
               </h4>
-              <p className="text-xs text-slate-300">
-                All data will be securely stored with permanent reference ID generation.
-              </p>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-slate-300">
+                  All data will be securely stored with permanent reference ID generation.
+                </span>
+                {uploadedMandatoryCount < mandatoryDocDefs.length ? (
+                  <span className="inline-flex items-center gap-1 text-amber-300 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                    {mandatoryDocDefs.length - uploadedMandatoryCount} mandatory doc(s) required in Section 7
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-emerald-300 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    All mandatory documents verified
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-3">

@@ -1,5 +1,5 @@
 import React from 'react';
-import logoImage from '../../assets/images/nagu_enterprises_logo_1791472953152.jpg';
+import logoImage from '../../assets/images/nagu_emblem_clean_1791478386994.jpg';
 
 interface NaguLogoProps {
   variant?: 'light' | 'dark';
@@ -51,14 +51,14 @@ export const NaguLogo: React.FC<NaguLogoProps> = ({
       <div
         className={`relative shrink-0 ${emblemSizes[size]} rounded-xl overflow-hidden shadow-sm ring-1 ${
           isDark
-            ? 'ring-white/20 bg-white/10'
+            ? 'ring-white/20 bg-white'
             : 'ring-blue-900/10 bg-white'
         }`}
       >
         <img
           src={logoImage}
-          alt="Nagu Enterprises Official Crest"
-          className="w-full h-full object-cover object-center transform scale-110 hover:scale-115 transition-transform duration-300"
+          alt="Nagu Enterprises Official Logo"
+          className="w-full h-full object-contain p-0.5 group-hover:scale-105 transition-transform duration-300"
           loading="eager"
         />
       </div>

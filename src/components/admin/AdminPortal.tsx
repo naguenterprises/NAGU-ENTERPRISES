@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ApplicationRecord, ApplicationStatus } from '../../types';
+import { AuthUser } from '../../types/auth';
+import { getAllStaffAccounts } from '../../services/authService';
 import { STAFF_MEMBERS } from '../../data/staffMembers';
 import { BUSINESS_TYPES } from '../../data/businessTypes';
 import { getStoredApplications, saveApplications, formatDate, formatDateTime, maskPAN } from '../../utils/storage';
 import { AdminApplicationModal } from './AdminApplicationModal';
 import { ConsultancyManagement } from './ConsultancyManagement';
+import { StaffManagement } from './StaffManagement';
 import { 
   ShieldCheck, 
   Search, 
@@ -26,19 +29,29 @@ import {
   LogOut,
   Sliders,
   DollarSign,
-  Sparkles
+  Sparkles,
+  UserCheck
 } from 'lucide-react';
 
 interface AdminPortalProps {
   onExit: () => void;
+  currentUser?: AuthUser | null;
+  onSignOut?: () => void;
 }
 
-export const AdminPortal: React.FC<AdminPortalProps> = ({ onExit }) => {
+export const AdminPortal: React.FC<AdminPortalProps> = ({ onExit, currentUser, onSignOut }) => {
   const [applications, setApplications] = useState<ApplicationRecord[]>(getStoredApplications());
   const [selectedApp, setSelectedApp] = useState<ApplicationRecord | null>(null);
 
   // Active admin view tab
-  const [adminSection, setAdminSection] = useState<'applications' | 'consultancy' | 'settings' | 'payments' | 'future_services'>('applications');
+  const [adminSection, setAdminSection] = useState<'applications' | 'consultancy' | 'staff_management' | 'settings' | 'payments' | 'future_services'>('applications');
+  const [pendingStaffCount, setPendingStaffCount] = useState<number>(0);
+
+  useEffect(() => {
+    getAllStaffAccounts().then(staff => {
+      setPendingStaffCount(staff.filter(s => s.accountStatus === 'pending').length);
+    }).catch(() => {});
+  }, [adminSection]);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -180,6 +193,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onExit }) => {
         >
           <Sparkles className="w-4 h-4 text-amber-300" />
           <span>Consultancy Requests</span>
+        </button>
+
+        {/* Staff Management Tab */}
+        <button
+          onClick={() => setAdminSection('staff_management')}
+          className={`flex items-center gap-1.5 py-2 px-4 rounded-xl transition-colors relative ${
+            adminSection === 'staff_management'
+              ? 'bg-blue-700 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <UserCheck className="w-4 h-4 text-blue-300" />
+          <span>Staff Management</span>
+          {pendingStaffCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400 text-slate-950">
+              {pendingStaffCount}
+            </span>
+          )}
         </button>
 
         <button
@@ -574,6 +605,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onExit }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* SECTION: STAFF MANAGEMENT & APPROVALS */}
+      {adminSection === 'staff_management' && (
+        <StaffManagement />
       )}
 
       {/* SECTION: ADMIN SETTINGS & STAFF */}

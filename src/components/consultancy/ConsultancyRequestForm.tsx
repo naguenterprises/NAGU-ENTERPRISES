@@ -8,8 +8,9 @@ import {
   TurnoverRange 
 } from '../../types/consultancy';
 import { submitConsultancyRequest } from '../../services/consultancyService';
+import { createOrLinkCustomerAccount } from '../../services/authService';
 import { INDIAN_STATES } from '../wizard/ApplicantDetailsStep';
-import logoImage from '../../assets/images/nagu_enterprises_logo_1791472953152.jpg';
+import logoImage from '../../assets/images/nagu_emblem_clean_1791478386994.jpg';
 import { 
   Building2, 
   Phone, 
@@ -328,6 +329,17 @@ export const ConsultancyRequestForm: React.FC<ConsultancyRequestFormProps> = ({
       });
 
       if (res.success && res.record) {
+        // Automatically provision or link client account for Customer Portal
+        try {
+          await createOrLinkCustomerAccount({
+            fullName: clientName.trim(),
+            email: clientEmail.trim(),
+            mobile: clientMobile.trim(),
+          });
+        } catch (authErr) {
+          console.warn('Customer account linking notice:', authErr);
+        }
+
         setSubmittedRecord(res.record);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
@@ -530,8 +542,12 @@ Helpline: +91 98450 12345 | naguenterprises84@gmail.com
             
             {/* Left Brand Area */}
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-xl bg-blue-700 text-white flex items-center justify-center shadow-md shrink-0">
-                <Building2 className="w-8 h-8" />
+              <div className="w-16 h-16 rounded-xl overflow-hidden shadow-md ring-1 ring-blue-900/10 shrink-0 bg-white flex items-center justify-center">
+                <img
+                  src={logoImage}
+                  alt="Nagu Enterprises Official Logo"
+                  className="w-full h-full object-contain p-1"
+                />
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
