@@ -1,0 +1,6 @@
+{
+  "name": "Nagu Enterprises - Business Registration Portal",
+  "description": "Professional client onboarding and application management portal for Nagu Enterprises business registration and compliance services.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
