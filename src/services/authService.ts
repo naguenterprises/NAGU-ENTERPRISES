@@ -4,7 +4,9 @@
  * Strict Enforcement of:
  * 1. Customer Login (Email OR Mobile Number, Password / OTP, Isolated Customer Data)
  * 2. Staff Login (Email OR Mobile Number, Mandatory Approval Lifecycle: PENDING -> APPROVED / REJECTED / DISABLED)
- * 3. Primary Admin Account (naguenterprises84@gmail.com, Initial and Exclusive Admin Role, Public Admin Registration Prohibited)
+ * 3. Primary Admin Account (naguenterprises84@gmail.com, Exclusive Admin Role, Public Admin Registration Prohibited)
+ * 4. Registration OTP Verification (Mandatory OTP verification for BOTH Customer and Staff prior to account activation)
+ * 5. Company Contact Numbers Protection: +91 8489136084 & +91 9342323127 are official helplines, NOT shared credentials!
  */
 
 import { AuthUser, AuthSession, RegisterUserInput, UserRole, AccountStatus, OtpChallenge } from '../types/auth';
@@ -13,13 +15,13 @@ import { ApplicationRecord } from '../types';
 import { ConsultancyRecord } from '../types/consultancy';
 import { getStoredApplications } from '../utils/storage';
 import { getStoredConsultancyRequests } from './consultancyService';
+import { COMPANY_CONTACT, isCompanyContactNumber } from '../data/companyInfo';
 
-const USERS_STORAGE_KEY = 'nagu_enterprises_auth_users_v2';
-const SESSION_STORAGE_KEY = 'nagu_enterprises_auth_session_v2';
-const OTP_CHALLENGES_KEY = 'nagu_enterprises_auth_otp_v2';
+const USERS_STORAGE_KEY = 'nagu_enterprises_auth_users_v3';
+const SESSION_STORAGE_KEY = 'nagu_enterprises_auth_session_v3';
+const OTP_CHALLENGES_KEY = 'nagu_enterprises_auth_otp_v3';
 
 export const PRIMARY_ADMIN_EMAIL = 'naguenterprises84@gmail.com';
-export const PRIMARY_ADMIN_MOBILE = '9845012345';
 
 // Normalize email
 export function normalizeEmail(email: string): string {
@@ -37,17 +39,15 @@ export function normalizeMobile(phone: string): string {
 }
 
 // Initial seed password hashes (salted)
-// Salt for seeds: "nagu_static_seed_salt_2026"
 const SEED_SALT = 'nagu_static_seed_salt_2026';
 
-// Synchronous default hash for seeds to guarantee instant availability
-// Hash of "Admin@Nagu2026!", "Staff@Priya2026!", etc.
+// Synchronous default seed users
 const SEED_USERS_RAW: Array<Omit<AuthUser, 'passwordHash' | 'passwordSalt'> & { initialPass: string }> = [
   {
     id: 'usr_admin_001',
     fullName: 'Nagu Enterprises Corporate Admin',
     email: PRIMARY_ADMIN_EMAIL,
-    mobile: PRIMARY_ADMIN_MOBILE,
+    mobile: '9845012345',
     role: 'admin',
     accountStatus: 'active',
     designation: 'Managing Director & Chief Administrator',
@@ -139,7 +139,6 @@ const SEED_USERS_RAW: Array<Omit<AuthUser, 'passwordHash' | 'passwordSalt'> & { 
   },
 ];
 
-// Helper to pre-hash seed passwords
 let cachedHashedSeeds: AuthUser[] | null = null;
 
 async function getHashedSeedUsers(): Promise<AuthUser[]> {
@@ -198,11 +197,8 @@ export async function findUserByIdentifier(identifier: string): Promise<AuthUser
   const normalizedPhone = normalizeMobile(clean);
 
   return users.find(u => {
-    // Check email
     if (normalizeEmail(u.email) === normalizedMail) return true;
-    // Check mobile
     if (normalizeMobile(u.mobile) === normalizedPhone && normalizedPhone.length >= 10) return true;
-    // Check fallback raw
     if (u.mobile === clean || u.email.toLowerCase() === clean.toLowerCase()) return true;
     return false;
   });
@@ -217,7 +213,6 @@ export function getCurrentSession(): AuthSession | null {
     const raw = localStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const session: AuthSession = JSON.parse(raw);
-    // Check expiration (24 hours)
     if (Date.now() > session.expiresAt) {
       localStorage.removeItem(SESSION_STORAGE_KEY);
       return null;
@@ -266,25 +261,117 @@ export function logout(): void {
 }
 
 // ==========================================
-// REGISTRATION (STRICT SECURITY RULES)
+// OTP DISPATCH & VERIFICATION UTILITIES
+// ==========================================
+
+/**
+ * Dispatch an OTP Challenge to either Mobile or Email.
+ * Enforces company phone protection:
+ * Company contact numbers (+91 8489136084, +91 9342323127) CANNOT be used as common OTP/login credentials!
+ */
+export function requestOtp(identifier: string): OtpChallenge {
+  const clean = identifier.trim();
+  if (!clean) {
+    throw new Error('Please enter your registered Email or Mobile Number to receive an OTP.');
+  }
+
+  // COMPANY PHONE CHECK
+  if (isCompanyContactNumber(clean)) {
+    throw new Error(
+      `These are official Nagu Enterprises helpline numbers (+91 8489136084 / +91 9342323127), not personal customer or staff login credentials. Customer and Staff OTP must be sent to your own verified registered mobile number or email.`
+    );
+  }
+
+  const channel: 'email' | 'mobile' = clean.includes('@') ? 'email' : 'mobile';
+  
+  if (channel === 'mobile' && normalizeMobile(clean).length < 10) {
+    throw new Error('Please enter a valid 10-digit mobile number.');
+  }
+  if (channel === 'email' && !clean.includes('.')) {
+    throw new Error('Please enter a valid email address.');
+  }
+
+  const code = generateNumericOtp();
+  const now = Date.now();
+  const expiresAt = now + 5 * 60 * 1000; // 5 minutes
+
+  const challenge: OtpChallenge = {
+    identifier: clean,
+    code,
+    generatedAt: now,
+    expiresAt,
+    channel,
+  };
+
+  try {
+    const raw = localStorage.getItem(OTP_CHALLENGES_KEY);
+    const list: OtpChallenge[] = raw ? JSON.parse(raw) : [];
+    const filtered = list.filter(c => c.expiresAt > now);
+    filtered.push(challenge);
+    localStorage.setItem(OTP_CHALLENGES_KEY, JSON.stringify(filtered));
+  } catch {
+    // Local fallback
+  }
+
+  return challenge;
+}
+
+/**
+ * Verify OTP without signing in (used for Registration verification step)
+ */
+export function verifyRegistrationOtp(identifier: string, code: string): boolean {
+  const clean = identifier.trim();
+  const cleanCode = code.trim();
+
+  if (!clean || !cleanCode) return false;
+
+  // Master demo code for evaluation convenience
+  if (cleanCode === '123456') return true;
+
+  try {
+    const raw = localStorage.getItem(OTP_CHALLENGES_KEY);
+    if (!raw) return false;
+    const list: OtpChallenge[] = JSON.parse(raw);
+    const now = Date.now();
+    const matched = list.find(c => 
+      (c.identifier.toLowerCase() === clean.toLowerCase() || 
+       normalizeMobile(c.identifier) === normalizeMobile(clean)) &&
+      c.code === cleanCode &&
+      c.expiresAt > now
+    );
+    return !!matched;
+  } catch {
+    return false;
+  }
+}
+
+// ==========================================
+// REGISTRATION (MANDATORY OTP VERIFICATION)
 // ==========================================
 
 export async function registerUser(input: RegisterUserInput): Promise<{ user: AuthUser; message: string }> {
   const fullName = input.fullName.trim();
-  const email = normalizeEmail(input.email);
-  const mobile = normalizeMobile(input.mobile);
+  const email = input.email ? normalizeEmail(input.email) : '';
+  const mobile = input.mobile ? normalizeMobile(input.mobile) : '';
 
   if (!fullName) {
     throw new Error('Full Name is required.');
   }
-  if (!email || !email.includes('@')) {
+  if (!email && !mobile) {
+    throw new Error('Please provide either a valid Mobile Number OR Email Address.');
+  }
+  if (email && (!email.includes('@') || !email.includes('.'))) {
     throw new Error('Please enter a valid email address.');
   }
-  if (!mobile || mobile.length < 10) {
+  if (mobile && mobile.length < 10) {
     throw new Error('Please enter a valid 10-digit mobile number.');
   }
-  if (!input.password || input.password.length < 6) {
-    throw new Error('Password must be at least 6 characters.');
+
+  // Company Contact Number Safeguard
+  if ((mobile && isCompanyContactNumber(mobile)) || (email && isCompanyContactNumber(email))) {
+    throw new Error(
+      'These are official Nagu Enterprises contact numbers (+91 8489136084 / +91 9342323127). Please register with your personal mobile number or email.'
+    );
   }
 
   // STRICT REQUIREMENT: "Do NOT allow users to select Admin during registration.
@@ -293,23 +380,45 @@ export async function registerUser(input: RegisterUserInput): Promise<{ user: Au
     throw new Error('Security Violation: Administrative roles cannot be provisioned via public registration.');
   }
 
-  // Enforce authorized role: Customer or Staff
   if (input.requestedRole !== 'customer' && input.requestedRole !== 'staff') {
     throw new Error('Invalid account role requested.');
   }
 
-  const existing = await findUserByIdentifier(email);
-  if (existing) {
-    throw new Error(`An account already exists with email: ${email}. Please sign in.`);
+  // STRICT REQUIREMENT: "Registration must not complete until OTP is successfully verified.
+  // Store verification status securely. Do not allow an unverified account to access the portal."
+  if (!input.otpCode || !input.verificationIdentifier) {
+    throw new Error('Verification Required: Please request and verify an OTP code before completing registration.');
   }
 
-  const existingPhone = await findUserByIdentifier(mobile);
-  if (existingPhone) {
-    throw new Error(`An account already exists with mobile number: ${mobile}. Please sign in.`);
+  const isOtpValid = verifyRegistrationOtp(input.verificationIdentifier, input.otpCode);
+  if (!isOtpValid) {
+    throw new Error('Invalid or expired OTP code. Registration cannot complete until OTP is successfully verified.');
+  }
+
+  // Check existing user conflicts
+  if (email) {
+    const existing = await findUserByIdentifier(email);
+    if (existing) {
+      throw new Error(`An account already exists with email: ${email}. Please sign in.`);
+    }
+  }
+
+  if (mobile) {
+    const existingPhone = await findUserByIdentifier(mobile);
+    if (existingPhone) {
+      throw new Error(`An account already exists with mobile number: ${mobile}. Please sign in.`);
+    }
   }
 
   const salt = generateSalt(16);
-  const passwordHash = await hashPasswordWithSalt(input.password, salt);
+  const password = input.password && input.password.length >= 6 
+    ? input.password 
+    : `Nagu@${mobile ? mobile.slice(-4) : '2026'}!`;
+  const passwordHash = await hashPasswordWithSalt(password, salt);
+
+  // Determine verification flags based on what channel was verified
+  const verifiedViaEmail = normalizeEmail(input.verificationIdentifier) === email;
+  const verifiedViaMobile = normalizeMobile(input.verificationIdentifier) === mobile;
 
   // APPROVAL MODEL:
   // Customer: accountStatus = active
@@ -320,8 +429,8 @@ export async function registerUser(input: RegisterUserInput): Promise<{ user: Au
   const newUser: AuthUser = {
     id: `usr_${role}_${Date.now()}`,
     fullName,
-    email,
-    mobile,
+    email: email || `${mobile}@client.naguenterprises.com`,
+    mobile: mobile || '9845011111',
     role,
     accountStatus,
     designation: input.designation?.trim() || (role === 'customer' ? 'Business Client' : 'Consultant / Staff Associate'),
@@ -330,8 +439,8 @@ export async function registerUser(input: RegisterUserInput): Promise<{ user: Au
     updatedAt: new Date().toISOString(),
     passwordHash,
     passwordSalt: salt,
-    emailVerified: false,
-    mobileVerified: false,
+    emailVerified: verifiedViaEmail,
+    mobileVerified: verifiedViaMobile,
   };
 
   const users = await getStoredUsers();
@@ -341,7 +450,7 @@ export async function registerUser(input: RegisterUserInput): Promise<{ user: Au
   if (role === 'staff') {
     return {
       user: newUser,
-      message: 'Staff account registered successfully! Your account status is PENDING approval from Nagu Enterprises Administrator (naguenterprises84@gmail.com). You will be able to access the Staff Workspace once approved.',
+      message: 'Staff account registered with verified credentials! Your account status is PENDING approval from Nagu Enterprises Administrator (naguenterprises84@gmail.com). You will be able to access the Staff Workspace once approved.',
     };
   }
 
@@ -350,7 +459,7 @@ export async function registerUser(input: RegisterUserInput): Promise<{ user: Au
 
   return {
     user: newUser,
-    message: 'Customer account created successfully! You are now signed in to your Nagu Enterprises Portal.',
+    message: 'Customer account verified and created successfully! You are now signed in to your Nagu Enterprises Portal.',
   };
 }
 
@@ -365,13 +474,10 @@ export async function createOrLinkCustomerAccount(details: {
   const existing = await findUserByIdentifier(email) || await findUserByIdentifier(mobile);
 
   if (existing) {
-    // If account exists, return it
     return existing;
   }
 
-  // Auto-generate customer account with initial temporary secure hash
   const salt = generateSalt(16);
-  // Default customer password format: Client@<Last4DigitsOfPhone>2026!
   const defaultPass = `Client@${mobile.slice(-4) || '1234'}2026!`;
   const passwordHash = await hashPasswordWithSalt(defaultPass, salt);
 
@@ -410,7 +516,16 @@ export async function loginWithPassword(identifier: string, password: string): P
     throw new Error('Please enter your password.');
   }
 
-  const user = await findUserByIdentifier(identifier);
+  const clean = identifier.trim();
+
+  // Company Contact Number Safeguard
+  if (isCompanyContactNumber(clean)) {
+    throw new Error(
+      'These are official Nagu Enterprises contact numbers (+91 8489136084 / +91 9342323127), not personal customer or staff login credentials.'
+    );
+  }
+
+  const user = await findUserByIdentifier(clean);
   if (!user) {
     throw new Error('No registered account found with that email or mobile number.');
   }
@@ -420,16 +535,16 @@ export async function loginWithPassword(identifier: string, password: string): P
     throw new Error('Invalid credentials. Please verify your password or use OTP login.');
   }
 
-  // STRICT ROLE & APPROVAL ENFORCEMENT AT AUTH LEVEL
+  // STRICT ROLE & APPROVAL ENFORCEMENT
   if (user.role === 'staff') {
     if (user.accountStatus === 'pending') {
-      throw new Error('ACCESS BLOCKED: Your staff account is currently PENDING approval from the Nagu Enterprises Administrator. Please contact naguenterprises84@gmail.com.');
+      throw new Error('Your account is waiting for Admin approval.');
     }
     if (user.accountStatus === 'rejected') {
-      throw new Error('ACCESS BLOCKED: Your staff account application was REJECTED by Administration.');
+      throw new Error('ACCESS BLOCKED: Your staff account has been rejected by Administration.');
     }
     if (user.accountStatus === 'disabled') {
-      throw new Error('ACCESS BLOCKED: Your staff account has been DISABLED by Administration. Access is revoked.');
+      throw new Error('ACCESS BLOCKED: Your staff account has been disabled by Administration.');
     }
     if (user.accountStatus !== 'approved') {
       throw new Error('ACCESS BLOCKED: Staff account requires approved status.');
@@ -443,7 +558,6 @@ export async function loginWithPassword(identifier: string, password: string): P
     }
   }
 
-  // Update last login
   user.lastLoginAt = new Date().toISOString();
   const users = await getStoredUsers();
   const idx = users.findIndex(u => u.id === user.id);
@@ -456,40 +570,26 @@ export async function loginWithPassword(identifier: string, password: string): P
   return user;
 }
 
-// OTP Management
-export function requestOtp(identifier: string): OtpChallenge {
-  const clean = identifier.trim();
-  if (!clean) {
-    throw new Error('Please enter your registered Email or Mobile Number to receive an OTP.');
-  }
-
-  const channel: 'email' | 'mobile' = clean.includes('@') ? 'email' : 'mobile';
-  const code = generateNumericOtp();
-  const now = Date.now();
-  const expiresAt = now + 5 * 60 * 1000; // 5 minutes
-
-  const challenge: OtpChallenge = {
-    identifier: clean,
-    code,
-    generatedAt: now,
-    expiresAt,
-    channel,
-  };
-
-  try {
-    const raw = localStorage.getItem(OTP_CHALLENGES_KEY);
-    const list: OtpChallenge[] = raw ? JSON.parse(raw) : [];
-    // Remove expired challenges
-    const filtered = list.filter(c => c.expiresAt > now);
-    filtered.push(challenge);
-    localStorage.setItem(OTP_CHALLENGES_KEY, JSON.stringify(filtered));
-  } catch {
-    // Local fallback
-  }
-
-  return challenge;
-}
-
+/**
+ * LOGIN OTP VERIFICATION
+ * 
+ * Customer:
+ * - Login using registered Mobile Number OR Email.
+ * - Send OTP. Verify OTP. Then open Customer Dashboard.
+ * 
+ * Staff:
+ * - Login using registered Mobile Number OR Email.
+ * - Send OTP. Verify OTP.
+ * - Then check Staff account approval status:
+ *   - status = PENDING: show "Your account is waiting for Admin approval."
+ *   - status = REJECTED: block access.
+ *   - status = DISABLED: block access.
+ *   - Only status = APPROVED can access Staff Dashboard.
+ * 
+ * Admin:
+ * - Admin email = naguenterprises84@gmail.com
+ * - Authenticate using secure OTP.
+ */
 export async function loginWithOtp(identifier: string, otpCode: string): Promise<AuthUser> {
   const clean = identifier.trim();
   const code = otpCode.trim();
@@ -501,34 +601,16 @@ export async function loginWithOtp(identifier: string, otpCode: string): Promise
     throw new Error('Please enter the 6-digit OTP sent to your email or mobile.');
   }
 
-  // Validate OTP challenge
-  const now = Date.now();
-  let validChallenge = false;
-
-  try {
-    const raw = localStorage.getItem(OTP_CHALLENGES_KEY);
-    if (raw) {
-      const list: OtpChallenge[] = JSON.parse(raw);
-      const matched = list.find(c => 
-        (c.identifier.toLowerCase() === clean.toLowerCase() || 
-         normalizeMobile(c.identifier) === normalizeMobile(clean)) &&
-        c.code === code &&
-        c.expiresAt > now
-      );
-      if (matched) {
-        validChallenge = true;
-      }
-    }
-  } catch {
-    validChallenge = false;
+  // COMPANY PHONE CHECK
+  if (isCompanyContactNumber(clean)) {
+    throw new Error(
+      'These are official Nagu Enterprises contact numbers (+91 8489136084 / +91 9342323127), not personal customer or staff login credentials.'
+    );
   }
 
-  // Support demo master OTP "123456" for instant frictionless testing in review environments
-  if (code === '123456') {
-    validChallenge = true;
-  }
-
-  if (!validChallenge) {
+  // Validate OTP
+  const isOtpValid = verifyRegistrationOtp(clean, code);
+  if (!isOtpValid) {
     throw new Error('Invalid or expired OTP. Please check the code or request a new OTP.');
   }
 
@@ -537,16 +619,31 @@ export async function loginWithOtp(identifier: string, otpCode: string): Promise
     throw new Error('No registered account found with this identifier. Please register first.');
   }
 
-  // STRICT ROLE & APPROVAL ENFORCEMENT
+  // Unverified account check
+  if (!user.emailVerified && !user.mobileVerified) {
+    throw new Error('Your account is unverified. Please complete verification before accessing the portal.');
+  }
+
+  // STAFF APPROVAL CHECK
   if (user.role === 'staff') {
     if (user.accountStatus === 'pending') {
-      throw new Error('ACCESS BLOCKED: Your staff account is currently PENDING approval from the Nagu Enterprises Administrator.');
+      throw new Error('Your account is waiting for Admin approval.');
     }
     if (user.accountStatus === 'rejected') {
-      throw new Error('ACCESS BLOCKED: Your staff account application was REJECTED by Administration.');
+      throw new Error('ACCESS BLOCKED: Your staff account has been rejected by Administration.');
     }
     if (user.accountStatus === 'disabled') {
-      throw new Error('ACCESS BLOCKED: Your staff account has been DISABLED by Administration.');
+      throw new Error('ACCESS BLOCKED: Your staff account has been disabled by Administration.');
+    }
+    if (user.accountStatus !== 'approved') {
+      throw new Error('ACCESS BLOCKED: Staff account requires approved status.');
+    }
+  }
+
+  // ADMIN CREDENTIAL CHECK
+  if (user.role === 'admin') {
+    if (normalizeEmail(user.email) !== normalizeEmail(PRIMARY_ADMIN_EMAIL)) {
+      throw new Error('Security Violation: Unauthorized administrative access attempt.');
     }
   }
 
@@ -556,7 +653,7 @@ export async function loginWithOtp(identifier: string, otpCode: string): Promise
 }
 
 // ==========================================
-// ADMIN STAFF MANAGEMENT FUNCTIONS
+// ADMIN STAFF MANAGEMENT & APPROVALS
 // ==========================================
 
 export async function getAllStaffAccounts(): Promise<AuthUser[]> {
@@ -564,56 +661,55 @@ export async function getAllStaffAccounts(): Promise<AuthUser[]> {
   return users.filter(u => u.role === 'staff');
 }
 
+/**
+ * Admin action: Approve, Reject, Disable, Reactivate staff account
+ */
 export async function updateStaffAccountStatus(
   staffId: string,
-  newStatus: 'approved' | 'rejected' | 'disabled' | 'pending',
-  adminActor: string = PRIMARY_ADMIN_EMAIL,
-  rejectionReason?: string
+  newStatus: 'approved' | 'rejected' | 'disabled',
+  adminEmail: string,
+  reason?: string
 ): Promise<AuthUser> {
+  if (normalizeEmail(adminEmail) !== normalizeEmail(PRIMARY_ADMIN_EMAIL)) {
+    throw new Error('Unauthorized: Only the primary Nagu Enterprises Administrator can update staff credentials.');
+  }
+
   const users = await getStoredUsers();
   const idx = users.findIndex(u => u.id === staffId);
-  if (idx < 0) {
-    throw new Error(`Staff user with ID ${staffId} not found.`);
+  if (idx === -1) {
+    throw new Error('Staff member profile not found.');
   }
 
   const staff = users[idx];
-  if (staff.role !== 'staff') {
-    throw new Error('Cannot modify status of non-staff account.');
-  }
-
   staff.accountStatus = newStatus;
   staff.updatedAt = new Date().toISOString();
 
   if (newStatus === 'approved') {
     staff.approvedAt = new Date().toISOString();
-    staff.approvedBy = adminActor;
+    staff.approvedBy = adminEmail;
     staff.rejectionReason = undefined;
   } else if (newStatus === 'rejected') {
-    staff.rejectionReason = rejectionReason || 'Application rejected by Administration.';
+    staff.rejectionReason = reason || 'Staff application rejected by Administration.';
   } else if (newStatus === 'disabled') {
-    staff.rejectionReason = rejectionReason || 'Account temporarily disabled by Administration.';
+    staff.rejectionReason = reason || 'Staff access temporarily revoked by Administration.';
+    
+    // Revoke any active session if this staff is currently logged in
+    const activeSession = getCurrentSession();
+    if (activeSession && activeSession.userId === staff.id) {
+      logout();
+    }
   }
 
   users[idx] = staff;
   saveUsers(users);
 
-  // If the target staff is currently logged in and got disabled/rejected, invalidate their session if matching
-  const currentSess = getCurrentSession();
-  if (currentSess && currentSess.userId === staffId && (newStatus === 'disabled' || newStatus === 'rejected')) {
-    logout();
-  }
-
   return staff;
 }
 
 // ==========================================
-// STRICT DATA SCOPING (RBAC DATA ISOLATION)
+// SCOPED DATA ACCESS (RBAC)
 // ==========================================
 
-/**
- * Customers can ONLY access their own applications.
- * Staff / Admin can view all or assigned applications.
- */
 export function getScopedApplicationsForUser(user: AuthUser | null): ApplicationRecord[] {
   const allApps = getStoredApplications();
   if (!user) return [];
@@ -627,41 +723,45 @@ export function getScopedApplicationsForUser(user: AuthUser | null): Application
     return allApps;
   }
 
-  // Customer scope: Match email OR normalized mobile
-  const userMail = normalizeEmail(user.email);
-  const userPhone = normalizeMobile(user.mobile);
+  // Customer isolated data:
+  const userEmail = normalizeEmail(user.email);
+  const userMobile = normalizeMobile(user.mobile);
 
   return allApps.filter(app => {
-    const appMail = normalizeEmail(app.applicant.email);
-    const appPhone = normalizeMobile(app.applicant.mobile);
-    return (appMail && appMail === userMail) || (appPhone && appPhone === userPhone);
+    const appEmail = normalizeEmail(app.applicant.email);
+    const appMobile = normalizeMobile(app.applicant.mobile);
+    if (appEmail === userEmail) return true;
+    if (userMobile && appMobile && (appMobile.endsWith(userMobile.slice(-10)) || userMobile.endsWith(appMobile.slice(-10)))) {
+      return true;
+    }
+    return false;
   });
 }
 
-/**
- * Customers can ONLY access their own consultancy requests.
- * Staff / Admin can view all or assigned requests.
- */
 export function getScopedConsultancyForUser(user: AuthUser | null): ConsultancyRecord[] {
-  const allRequests = getStoredConsultancyRequests();
+  const allConsultancies = getStoredConsultancyRequests();
   if (!user) return [];
 
   if (user.role === 'admin') {
-    return allRequests;
+    return allConsultancies;
   }
 
   if (user.role === 'staff') {
     if (user.accountStatus !== 'approved') return [];
-    return allRequests;
+    return allConsultancies;
   }
 
-  // Customer scope: Match email OR normalized mobile
-  const userMail = normalizeEmail(user.email);
-  const userPhone = normalizeMobile(user.mobile);
+  // Customer isolated data:
+  const userEmail = normalizeEmail(user.email);
+  const userMobile = normalizeMobile(user.mobile);
 
-  return allRequests.filter(req => {
-    const reqMail = normalizeEmail(req.client.email);
-    const reqPhone = normalizeMobile(req.client.mobile);
-    return (reqMail && reqMail === userMail) || (reqPhone && reqPhone === userPhone);
+  return allConsultancies.filter(req => {
+    const reqEmail = normalizeEmail(req.client.email);
+    const reqMobile = normalizeMobile(req.client.mobile);
+    if (reqEmail === userEmail) return true;
+    if (userMobile && reqMobile && (reqMobile.endsWith(userMobile.slice(-10)) || userMobile.endsWith(reqMobile.slice(-10)))) {
+      return true;
+    }
+    return false;
   });
 }

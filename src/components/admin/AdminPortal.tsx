@@ -8,6 +8,7 @@ import { getStoredApplications, saveApplications, formatDate, formatDateTime, ma
 import { AdminApplicationModal } from './AdminApplicationModal';
 import { ConsultancyManagement } from './ConsultancyManagement';
 import { StaffManagement } from './StaffManagement';
+import { COMPANY_CONTACT } from '../../data/companyInfo';
 import { 
   ShieldCheck, 
   Search, 
@@ -654,7 +655,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onExit, currentUser, o
                 </div>
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <span className="text-slate-500 block">Corporate Advisory Desk:</span>
-                  <span className="font-semibold text-slate-900">+91 98450 12345 / +91 80 2559 1000</span>
+                  <span className="font-semibold text-slate-900 font-mono">{COMPANY_CONTACT.displayPhones}</span>
                 </div>
               </div>
             </div>

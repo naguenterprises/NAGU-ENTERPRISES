@@ -124,7 +124,19 @@ export interface DeclarationDetails {
   signatureName: string;
 }
 
-export type DocumentStatus = 'pending' | 'uploaded' | 'under_review' | 'verified' | 'rejected' | 'reupload_required';
+export type DocumentStatus = 
+  | 'REQUIRED' 
+  | 'UPLOADED' 
+  | 'UNDER REVIEW' 
+  | 'VERIFIED' 
+  | 'REJECTED' 
+  | 'REPLACEMENT REQUIRED'
+  | 'pending'
+  | 'uploaded'
+  | 'under_review'
+  | 'verified'
+  | 'rejected'
+  | 'reupload_required';
 
 export interface RequiredDocumentDef {
   id: string;
@@ -137,17 +149,22 @@ export interface RequiredDocumentDef {
 }
 
 export interface UploadedDocument {
-  id: string;
+  id: string; // Document ID
+  applicationId?: string; // Associated Application ID
+  customerId?: string; // Associated Customer ID
   docDefId: string;
+  documentType?: string; // Document Type (e.g., PAN Card, Aadhaar Card, MOA, etc.)
   title: string;
-  fileName: string;
-  fileSizeFormatted: string;
-  uploadDate: string;
-  dataUrl?: string; // Simulated or Base64 preview
-  fileType: string;
-  status: DocumentStatus;
+  fileName: string; // Original File Name
+  fileSizeFormatted: string; // File Size
+  fileSizeBytes?: number;
+  uploadDate: string; // Upload Date (ISO or formatted)
+  fileType: string; // File Type MIME e.g. application/pdf, image/jpeg, image/png
+  status: DocumentStatus; // Verification Status
   rejectionReason?: string;
   required: boolean;
+  storageKey?: string; // Key in Secure IndexedDB Vault (never stored as base64 in state)
+  dataUrl?: string; // Deprecated optional fallback
 }
 
 export type ApplicationStatus =

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CONSULTANCY_CATEGORIES } from '../../data/consultancyServices';
 import { ConsultancyCategoryDef, ConsultancySubService } from '../../types/consultancy';
+import { COMPANY_CONTACT } from '../../data/companyInfo';
 import { 
   Rocket, 
   Landmark, 
@@ -323,11 +324,11 @@ export const ConsultancyLanding: React.FC<ConsultancyLandingProps> = ({
             Submit Custom Request
           </button>
           <a
-            href="tel:+919845012345"
+            href={`tel:${COMPANY_CONTACT.primaryPhone}`}
             className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-xs sm:text-sm font-semibold bg-white/10 hover:bg-white/15 text-white border border-white/20 transition-colors flex items-center justify-center gap-2"
           >
             <PhoneCall className="w-4 h-4 text-emerald-400" />
-            <span>Call Advisory Desk</span>
+            <span>Call Advisory Desk ({COMPANY_CONTACT.primaryPhone})</span>
           </a>
         </div>
       </div>

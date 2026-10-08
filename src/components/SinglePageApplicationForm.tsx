@@ -15,6 +15,9 @@ import {
 import { BUSINESS_TYPES, getRequiredDocumentsForFlow } from '../data/businessTypes';
 import { submitApplication, ValidationErrorItem } from '../services/applicationService';
 import { createOrLinkCustomerAccount } from '../services/authService';
+import { DocumentManagementCard } from './documents/DocumentManagementCard';
+import { storeDocumentBlob } from '../services/secureDocumentVault';
+import { COMPANY_CONTACT } from '../data/companyInfo';
 import { SubmissionSuccess } from './SubmissionSuccess';
 import { INDIAN_STATES } from './wizard/ApplicantDetailsStep';
 import logoImage from '../assets/images/nagu_emblem_clean_1791478386994.jpg';
@@ -318,34 +321,38 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
     documents.some(d => d.docDefId === def.id && d.fileName)
   ).length;
 
-  // Handle Document Upload simulation/real file
-  const handleFileUpload = (docDefId: string, file: File) => {
+  // Handle Document Upload securely into IndexedDB Vault (zero base64 in state)
+  const handleFileUpload = async (docDefId: string, file: File) => {
     const docDef = requiredDocDefs.find(d => d.id === docDefId);
     if (!docDef) return;
 
-    const formattedSize = file.size > 1024 * 1024 
-      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-      : `${Math.round(file.size / 1024)} KB`;
+    try {
+      const docId = `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const meta = await storeDocumentBlob({
+        documentId: docId,
+        applicationId: 'NE-BR-DRAFT',
+        customerId: applicant.email || 'usr_client_draft',
+        documentType: docDef.title,
+        fileName: file.name,
+        fileType: file.type || 'application/pdf',
+        blob: file,
+      });
 
-    const newDoc: UploadedDocument = {
-      id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      docDefId: docDef.id,
-      title: docDef.title,
-      fileName: file.name,
-      fileSizeFormatted: formattedSize,
-      uploadDate: new Date().toISOString(),
-      fileType: file.type || 'application/pdf',
-      status: 'uploaded',
-      required: docDef.required,
-    };
+      const newDoc: UploadedDocument = {
+        ...meta,
+        docDefId: docDef.id,
+        required: docDef.required,
+      };
 
-    setDocuments(prev => [...prev.filter(d => d.docDefId !== docDefId), newDoc]);
-    // clear field error for this doc
-    setFieldErrors(prev => {
-      const copy = { ...prev };
-      delete copy[`doc_${docDefId}`];
-      return copy;
-    });
+      setDocuments(prev => [...prev.filter(d => d.docDefId !== docDefId), newDoc]);
+      setFieldErrors(prev => {
+        const copy = { ...prev };
+        delete copy[`doc_${docDefId}`];
+        return copy;
+      });
+    } catch (err) {
+      console.error('Failed to store document in secure vault:', err);
+    }
   };
 
   const handleRemoveDoc = (docDefId: string) => {
@@ -852,15 +859,15 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
             <div className="flex flex-col sm:items-end justify-center text-xs text-slate-600 space-y-1.5 shrink-0 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <div className="flex items-center gap-2 font-medium text-slate-800">
                 <Phone className="w-4 h-4 text-blue-600" />
-                <span>+91 98450 12345 / +91 80 4123 5678</span>
+                <span>{COMPANY_CONTACT.displayPhones}</span>
               </div>
               <div className="flex items-center gap-2 font-medium text-slate-800">
                 <Mail className="w-4 h-4 text-blue-600" />
-                <span>naguenterprises84@gmail.com</span>
+                <span>{COMPANY_CONTACT.adminEmail}</span>
               </div>
               <div className="flex items-center gap-2 text-slate-500">
                 <MapPin className="w-4 h-4 text-blue-600" />
-                <span>Bangalore, Karnataka, India</span>
+                <span>Nagercoil, Tamil Nadu, India</span>
               </div>
               <div className="text-[10px] font-mono text-slate-600 pt-1">
                 ONLINE APPLICATION INTAKE FORM
@@ -2371,6 +2378,26 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
                 })}
               </div>
 
+              {/* Professional Document Management List */}
+              {documents.length > 0 && (
+                <div className="pt-6 border-t border-slate-200 space-y-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 font-display">
+                      Attached Document Vault ({documents.length} Files)
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Encrypted in browser binary vault • Preview, download, replace, or remove
+                    </p>
+                  </div>
+
+                  <DocumentManagementCard
+                    documents={documents}
+                    applicationId="NE-BR-DRAFT"
+                    onDocumentsChange={(updatedDocs) => setDocuments(updatedDocs)}
+                  />
+                </div>
+              )}
+
             </div>
           </div>
 
@@ -2758,7 +2785,7 @@ export const SinglePageApplicationForm: React.FC<SinglePageApplicationFormProps>
                 Need Filing Assistance?
               </div>
               <p className="text-slate-500">
-                Call our corporate compliance desk at <strong>+91 98450 12345</strong> or email <strong>naguenterprises84@gmail.com</strong>
+                Call our corporate compliance desk at <strong>{COMPANY_CONTACT.displayPhones}</strong> or email <strong>{COMPANY_CONTACT.adminEmail}</strong>
               </p>
             </div>
 

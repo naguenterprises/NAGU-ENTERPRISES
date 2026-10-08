@@ -35,12 +35,14 @@ export interface AuthSession {
 
 export interface RegisterUserInput {
   fullName: string;
-  email: string;
-  mobile: string;
-  password: string;
-  requestedRole: 'customer' | 'staff'; // ADMIN IS FORBIDDEN
+  email?: string;
+  mobile?: string;
+  password?: string;
+  requestedRole: 'customer' | 'staff'; // ADMIN IS STRICTLY FORBIDDEN FROM PUBLIC REGISTRATION
   designation?: string;
   department?: string;
+  otpCode: string; // Mandatory OTP code verified during registration
+  verificationIdentifier: string; // The specific email or mobile to which OTP was dispatched
 }
 
 export interface LoginCredentialInput {

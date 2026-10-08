@@ -17,6 +17,7 @@ import { AuthModal } from './components/auth/AuthModal';
 import { Footer } from './components/Footer';
 import { getCurrentUser, logout, getAllStaffAccounts } from './services/authService';
 import { AuthUser } from './types/auth';
+import { COMPANY_CONTACT } from './data/companyInfo';
 import { Mail, Phone, MapPin, X, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 export default function App() {
@@ -271,11 +272,22 @@ export default function App() {
               <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <Phone className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-semibold text-slate-800 block">Phone Consultation</span>
-                  <a href="tel:+919845012345" className="text-blue-700 font-bold hover:underline">
-                    +91 98450 12345
-                  </a>
-                  <span className="text-slate-400 text-xs block">Mon–Sat: 9:30 AM – 6:30 PM IST</span>
+                  <span className="font-semibold text-slate-800 block">Official Company Helpline</span>
+                  <div className="space-y-0.5 mt-0.5">
+                    <div>
+                      <span className="text-slate-500 text-xs mr-1">Primary:</span>
+                      <a href={`tel:${COMPANY_CONTACT.primaryPhone}`} className="text-blue-700 font-bold hover:underline font-mono">
+                        {COMPANY_CONTACT.primaryPhone}
+                      </a>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-xs mr-1">Secondary:</span>
+                      <a href={`tel:${COMPANY_CONTACT.secondaryPhone}`} className="text-blue-700 font-bold hover:underline font-mono">
+                        {COMPANY_CONTACT.secondaryPhone}
+                      </a>
+                    </div>
+                  </div>
+                  <span className="text-slate-400 text-xs block mt-1">{COMPANY_CONTACT.operatingHours}</span>
                 </div>
               </div>
 
@@ -294,8 +306,8 @@ export default function App() {
                 <MapPin className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold text-slate-800 block">Registered Office</span>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Nagu Enterprises, Corporate Advisory Towers, MG Road, Bengaluru, Karnataka 560001
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                    {COMPANY_CONTACT.registeredOffice}
                   </p>
                 </div>
               </div>

@@ -7,6 +7,7 @@ import {
   StatusHistoryItem 
 } from '../../types';
 import { STAFF_MEMBERS } from '../../data/staffMembers';
+import { DocumentManagementCard } from '../documents/DocumentManagementCard';
 import { formatDate, formatDateTime, maskPAN, maskAadhaar } from '../../utils/storage';
 import { 
   X, 
@@ -564,128 +565,32 @@ export const AdminApplicationModal: React.FC<AdminApplicationModalProps> = ({
           {/* TAB 6: DOCUMENT VERIFICATION */}
           {activeTab === 'documents' && (
             <div className="space-y-4">
-              <p className="text-xs text-slate-500">
-                Inspect applicant KYC and registered office proofs. Mark documents as verified, or request re-upload with clear officer reasoning.
-              </p>
-
-              <div className="space-y-3">
-                {application.documents.map(doc => {
-                  const isVerified = doc.status === 'verified';
-                  const isRejected = doc.status === 'rejected' || doc.status === 'reupload_required';
-
-                  return (
-                    <div 
-                      key={doc.id}
-                      className={`p-4 rounded-2xl border transition-all ${
-                        isVerified 
-                          ? 'border-emerald-200 bg-emerald-50/30' 
-                          : isRejected 
-                          ? 'border-red-200 bg-red-50/30' 
-                          : 'border-slate-200 bg-white'
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-slate-900 text-sm font-display">
-                              {doc.title}
-                            </h4>
-                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
-                              isVerified 
-                                ? 'bg-emerald-100 text-emerald-800' 
-                                : isRejected 
-                                ? 'bg-red-100 text-red-800' 
-                                : 'bg-slate-100 text-slate-700'
-                            }`}>
-                              {doc.status.toUpperCase().replace('_', ' ')}
-                            </span>
-                          </div>
-
-                          <span className="text-xs text-slate-500 block mt-0.5">
-                            File: {doc.fileName} · {doc.fileSizeFormatted} · Uploaded {doc.uploadDate}
-                          </span>
-
-                          {doc.rejectionReason && (
-                            <p className="text-xs text-red-600 mt-1 font-medium">
-                              Officer Rejection Note: {doc.rejectionReason}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          {doc.dataUrl && (
-                            <a
-                              href={doc.dataUrl}
-                              download={doc.fileName}
-                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>View / Download</span>
-                            </a>
-                          )}
-
-                          {!isVerified && (
-                            <button
-                              type="button"
-                              onClick={() => handleVerifyDocument(doc.id)}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Mark Verified</span>
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRejectingDocId(doc.id);
-                              setRejectionReason(doc.rejectionReason || '');
-                            }}
-                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
-                          >
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            <span>Request Re-upload</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Inline Reject Form */}
-                      {rejectingDocId === doc.id && (
-                        <div className="mt-3 p-3 bg-red-50 rounded-xl border border-red-200 space-y-2">
-                          <label className="block text-xs font-bold text-red-900">
-                            Reason for Requesting Document Re-upload (will be displayed to client):
-                          </label>
-                          <input
-                            type="text"
-                            value={rejectionReason}
-                            onChange={(e) => setRejectionReason(e.target.value)}
-                            placeholder="e.g., Utility bill is older than 2 months / Signature page missing"
-                            className="w-full px-3 py-1.5 bg-white rounded-lg border border-red-300 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-300"
-                          />
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setRejectingDocId(null)}
-                              className="px-3 py-1 text-xs font-medium text-slate-600 hover:text-slate-800"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRejectDocument(doc.id)}
-                              disabled={!rejectionReason.trim()}
-                              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold disabled:opacity-50"
-                            >
-                              Send Re-upload Notice
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 font-display">
+                    Applicant Dossier & Statutory Records
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Inspect applicant KYC and registered office proofs. Review, verify, or update scrutiny action.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                  {application.documents.length} Files Attached
+                </span>
               </div>
+
+              <DocumentManagementCard
+                documents={application.documents}
+                applicationId={application.id}
+                canManageStatus={true}
+                onDocumentsChange={(updatedDocs) => {
+                  onUpdate({
+                    ...application,
+                    documents: updatedDocs,
+                    updatedAt: new Date().toISOString(),
+                  });
+                }}
+              />
             </div>
           )}
 

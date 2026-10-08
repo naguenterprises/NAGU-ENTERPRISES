@@ -3,7 +3,8 @@ import { AuthUser } from '../../types/auth';
 import { ApplicationRecord } from '../../types';
 import { ConsultancyRecord } from '../../types/consultancy';
 import { getScopedApplicationsForUser, getScopedConsultancyForUser } from '../../services/authService';
-import { formatDate, formatDateTime, maskPAN, maskAadhaar } from '../../utils/storage';
+import { DocumentManagementCard } from '../documents/DocumentManagementCard';
+import { formatDate, formatDateTime, maskPAN, maskAadhaar, saveApplications, getStoredApplications } from '../../utils/storage';
 import { TIMELINE_STAGES } from '../../data/businessTypes';
 import { CONSULTANCY_TIMELINE_STAGES } from '../../data/consultancyServices';
 import {
@@ -408,40 +409,44 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
       {activeTab === 'documents' && (
         <div className="space-y-4">
           <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-            <div>
-              <h3 className="font-bold text-slate-900 text-lg font-display">
-                Client Encrypted Document Vault
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                All statutory PAN, Aadhaar, Board Resolutions, and electricity bills uploaded for your applications are archived here securely.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg font-display">
+                  Client Encrypted Document Vault
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  All statutory PAN, Aadhaar, Board Resolutions, and registered office records for your applications.
+                </p>
+              </div>
+              <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 self-start sm:self-auto">
+                {allUploadedDocs.length} Documents Encrypted
+              </span>
             </div>
 
             {allUploadedDocs.length === 0 ? (
-              <div className="py-8 text-center text-slate-400 text-xs">
+              <div className="py-12 text-center text-slate-400 text-xs">
                 No documents uploaded yet. Documents will appear here once you attach them to an application.
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
-                {allUploadedDocs.map((doc, idx) => (
-                  <div key={idx} className="py-3 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-900">{doc.title}</h4>
-                        <div className="text-[11px] text-slate-500">
-                          {doc.fileName} • Ref: <span className="font-mono text-blue-700">{doc.appRefId}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                      Archived
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <DocumentManagementCard
+                documents={allUploadedDocs}
+                customerId={currentUser.id}
+                currentUser={currentUser}
+                readOnly={false}
+                onDocumentsChange={(updatedDocs) => {
+                  // Propagate document changes back to customer application records
+                  const allApps = getStoredApplications();
+                  const updatedApps = allApps.map(app => {
+                    const matchedDocs = updatedDocs.filter(d => (d as any).appRefId === app.id || d.applicationId === app.id);
+                    if (matchedDocs.length > 0) {
+                      return { ...app, documents: matchedDocs };
+                    }
+                    return app;
+                  });
+                  saveApplications(updatedApps);
+                  setMyApplications(getScopedApplicationsForUser(currentUser));
+                }}
+              />
             )}
           </div>
         </div>

@@ -5,6 +5,7 @@ import { TIMELINE_STAGES } from '../data/businessTypes';
 import { CONSULTANCY_TIMELINE_STAGES } from '../data/consultancyServices';
 import { getStoredApplications, saveSingleApplication, formatDate, formatDateTime, maskPAN, maskAadhaar } from '../utils/storage';
 import { getStoredConsultancyRequests, saveConsultancyRequests } from '../services/consultancyService';
+import { DocumentManagementCard } from './documents/DocumentManagementCard';
 import { 
   Search, 
   CheckCircle2, 
@@ -612,59 +613,24 @@ ${selectedConsultancy.history.map(h => `[${formatDateTime(h.timestamp)}] ${h.sta
             {/* Documents Verification Table */}
             <div className="space-y-3 pt-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
-                Document Scrutiny Status
+                Document Scrutiny Status & Verification Vault
               </span>
 
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                {selectedApp.documents.map((doc) => {
-                  const isRejected = doc.status === 'rejected' || doc.status === 'reupload_required';
-
-                  return (
-                    <div key={doc.id} className="p-3.5 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-slate-900 block">{doc.title}</span>
-                        <div className="flex items-center gap-2 text-slate-500 font-mono text-[11px]">
-                          <span>{doc.fileName}</span>
-                          <span>({doc.fileSizeFormatted})</span>
-                        </div>
-                        {doc.rejectionReason && (
-                          <p className="text-red-600 font-medium text-[11px] pt-1">
-                            Discrepancy: {doc.rejectionReason}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold ${
-                          doc.status === 'verified'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : isRejected
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {doc.status.replace('_', ' ').toUpperCase()}
-                        </span>
-
-                        {isRejected && (
-                          <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-xs">
-                            Re-upload
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept=".pdf,.jpg,.jpeg,.png"
-                              onChange={(e) => {
-                                if (e.target.files?.[0]) {
-                                  handleClientReupload(doc.id, e.target.files[0]);
-                                }
-                              }}
-                            />
-                          </label>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <DocumentManagementCard
+                documents={selectedApp.documents}
+                applicationId={selectedApp.id}
+                onDocumentsChange={(updatedDocs) => {
+                  const updatedApp = {
+                    ...selectedApp,
+                    documents: updatedDocs,
+                    status: 'Documents Under Verification' as any,
+                    updatedAt: new Date().toISOString(),
+                  };
+                  setSelectedApp(updatedApp);
+                  saveSingleApplication(updatedApp);
+                  setReuploadSuccess('Document record updated and submitted for verification scrutiny.');
+                }}
+              />
             </div>
 
           </div>

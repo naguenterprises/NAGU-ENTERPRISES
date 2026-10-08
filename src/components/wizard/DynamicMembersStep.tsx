@@ -434,7 +434,7 @@ export const DynamicMembersStep: React.FC<DynamicMembersStepProps> = ({
                     type="tel"
                     value={member.mobile}
                     onChange={(e) => updateMember(index, { mobile: e.target.value })}
-                    placeholder="+91 98450 12345"
+                    placeholder="+91 98765 43210"
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-600"
                   />
                 </div>

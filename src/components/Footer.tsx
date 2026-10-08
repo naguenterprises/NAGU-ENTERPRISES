@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldCheck, Mail, Phone, MapPin } from 'lucide-react';
 import { NaguLogo } from './common/NaguLogo';
+import { COMPANY_CONTACT } from '../data/companyInfo';
 
 interface FooterProps {
   onNavigate: (view: 'welcome' | 'register' | 'status' | 'services' | 'admin' | 'consultancy') => void;
@@ -106,11 +107,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </div>
               <div className="flex items-start gap-2">
                 <Phone className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                <span>+91 98450 12345 / +91 80 2559 1000</span>
+                <span className="font-mono">{COMPANY_CONTACT.displayPhones}</span>
               </div>
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                <span>M.G. Road & Whitefield Corporate Desks, Bengaluru, Karnataka</span>
+                <span>{COMPANY_CONTACT.registeredOffice}</span>
               </div>
             </div>
           </div>

@@ -9,6 +9,7 @@ import {
 } from '../../types/consultancy';
 import { submitConsultancyRequest } from '../../services/consultancyService';
 import { createOrLinkCustomerAccount } from '../../services/authService';
+import { COMPANY_CONTACT } from '../../data/companyInfo';
 import { INDIAN_STATES } from '../wizard/ApplicantDetailsStep';
 import logoImage from '../../assets/images/nagu_emblem_clean_1791478386994.jpg';
 import { 
@@ -401,7 +402,7 @@ NEXT STEPS:
 
 NAGU ENTERPRISES
 Business Registration & Compliance Services
-Helpline: +91 98450 12345 | naguenterprises84@gmail.com
+Helpline: ${COMPANY_CONTACT.displayPhones} | ${COMPANY_CONTACT.adminEmail}
 =====================================================`;
 
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -518,8 +519,8 @@ Helpline: +91 98450 12345 | naguenterprises84@gmail.com
           {/* Helpline Footer */}
           <div className="pt-4 border-t border-slate-100 text-xs text-slate-500">
             Need urgent assistance? Contact Nagu Enterprises directly at{' '}
-            <strong className="text-slate-800">+91 98450 12345</strong> or{' '}
-            <strong className="text-slate-800">naguenterprises84@gmail.com</strong>
+            <strong className="text-slate-800">{COMPANY_CONTACT.displayPhones}</strong> or{' '}
+            <strong className="text-slate-800">{COMPANY_CONTACT.adminEmail}</strong>
           </div>
 
         </div>
@@ -579,15 +580,15 @@ Helpline: +91 98450 12345 | naguenterprises84@gmail.com
             <div className="flex flex-col sm:items-end justify-center text-xs text-slate-600 space-y-1.5 shrink-0 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <div className="flex items-center gap-2 font-medium text-slate-800">
                 <Phone className="w-4 h-4 text-blue-600" />
-                <span>+91 98450 12345 / +91 80 4123 5678</span>
+                <span>{COMPANY_CONTACT.displayPhones}</span>
               </div>
               <div className="flex items-center gap-2 font-medium text-slate-800">
                 <Mail className="w-4 h-4 text-blue-600" />
-                <span>naguenterprises84@gmail.com</span>
+                <span>{COMPANY_CONTACT.adminEmail}</span>
               </div>
               <div className="flex items-center gap-2 text-slate-500">
                 <MapPin className="w-4 h-4 text-blue-600" />
-                <span>Bangalore, Karnataka, India</span>
+                <span>Nagercoil, Tamil Nadu, India</span>
               </div>
               <div className="text-[10px] font-mono text-slate-600 pt-1">
                 FORM NE-CON-2026 / ONLINE INTAKE
@@ -1240,7 +1241,7 @@ Helpline: +91 98450 12345 | naguenterprises84@gmail.com
                   { id: 'Phone Call', icon: Phone, label: 'Phone Call', desc: 'Direct telephonic discussion' },
                   { id: 'WhatsApp', icon: MessageSquare, label: 'WhatsApp', desc: 'Chat & instant voice note update' },
                   { id: 'Video Meeting', icon: Video, label: 'Video Meeting', desc: 'Google Meet / Zoom screen share' },
-                  { id: 'Direct Office Meeting', icon: Building2, label: 'Direct Office Meeting', desc: 'In-person at Bangalore HQ' },
+                  { id: 'Direct Office Meeting', icon: Building2, label: 'Direct Office Meeting', desc: 'In-person at Nagercoil Head Office' },
                 ].map((pref) => {
                   const Icon = pref.icon;
                   const isSelected = preference === pref.id;

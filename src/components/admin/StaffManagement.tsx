@@ -30,6 +30,17 @@ export const StaffManagement: React.FC = () => {
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
   const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
 
+  // In-app modal confirmation dialog to avoid window.prompt / window.confirm
+  const [confirmDialog, setConfirmDialog] = useState<{
+    staffId: string;
+    staffName: string;
+    action: 'approve' | 'reject' | 'disable' | 'reactivate';
+    title: string;
+    description: string;
+    showReasonInput?: boolean;
+  } | null>(null);
+  const [dialogReason, setDialogReason] = useState<string>('');
+
   const loadStaff = async () => {
     try {
       setLoading(true);
@@ -343,19 +354,26 @@ export const StaffManagement: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleUpdateStatus(staff.id, 'approved', staff.fullName)}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                           title="Approve this staff account to grant Staff Portal access"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          <span>Approve Staff</span>
+                          <span>Approve</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => {
-                            const reason = window.prompt(`Specify rejection reason for ${staff.fullName} (optional):`, 'Not meeting current verification standards');
-                            handleUpdateStatus(staff.id, 'rejected', staff.fullName, reason || undefined);
+                            setDialogReason('Not meeting current statutory verification requirements');
+                            setConfirmDialog({
+                              staffId: staff.id,
+                              staffName: staff.fullName,
+                              action: 'reject',
+                              title: `Reject Staff Registration: ${staff.fullName}`,
+                              description: 'This will keep staff access completely blocked and record the reason.',
+                              showReasonInput: true,
+                            });
                           }}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer"
                           title="Reject this staff registration"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -370,11 +388,16 @@ export const StaffManagement: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => {
-                            if (window.confirm(`Are you sure you want to DISABLE access for ${staff.fullName}? They will be immediately blocked from logging in.`)) {
-                              handleUpdateStatus(staff.id, 'disabled', staff.fullName, 'Administrative suspension');
-                            }
+                            setConfirmDialog({
+                              staffId: staff.id,
+                              staffName: staff.fullName,
+                              action: 'disable',
+                              title: `Disable Access: ${staff.fullName}`,
+                              description: `Are you sure you want to DISABLE access for ${staff.fullName}? They will be immediately blocked from logging in.`,
+                              showReasonInput: false,
+                            });
                           }}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold transition-colors cursor-pointer"
                           title="Temporarily block access for this staff member"
                         >
                           <Ban className="w-3.5 h-3.5 text-amber-700" />
@@ -383,15 +406,21 @@ export const StaffManagement: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => {
-                            if (window.confirm(`Reject and permanently revoke staff credentials for ${staff.fullName}?`)) {
-                              handleUpdateStatus(staff.id, 'rejected', staff.fullName, 'Revoked by Administration');
-                            }
+                            setDialogReason('Revoked by Corporate Administration');
+                            setConfirmDialog({
+                              staffId: staff.id,
+                              staffName: staff.fullName,
+                              action: 'reject',
+                              title: `Revoke & Reject: ${staff.fullName}`,
+                              description: `Permanently reject and block portal access for ${staff.fullName}.`,
+                              showReasonInput: true,
+                            });
                           }}
-                          className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors"
+                          className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors cursor-pointer"
                           title="Revoke access"
                         >
                           <UserX className="w-3.5 h-3.5" />
-                          <span>Revoke</span>
+                          <span>Reject</span>
                         </button>
                       </>
                     )}
@@ -401,11 +430,11 @@ export const StaffManagement: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleUpdateStatus(staff.id, 'approved', staff.fullName)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold shadow-xs transition-colors"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                         title="Reactivate this staff member's account"
                       >
                         <Check className="w-3.5 h-3.5" />
-                        <span>Reactivate Account</span>
+                        <span>Reactivate</span>
                       </button>
                     )}
 
@@ -414,11 +443,11 @@ export const StaffManagement: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleUpdateStatus(staff.id, 'approved', staff.fullName)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold transition-colors cursor-pointer"
                         title="Reconsider and grant access"
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
-                        <span>Re-evaluate & Approve</span>
+                        <span>Reactivate</span>
                       </button>
                     )}
 
@@ -443,6 +472,78 @@ export const StaffManagement: React.FC = () => {
           Disabling a staff member immediately invalidates any active authentication tokens and terminates the current user session across devices.
         </p>
       </div>
+
+      {/* In-app Action Confirmation Modal (No window.alert/prompt) */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900 font-display">
+                {confirmDialog.title}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs sm:text-sm text-slate-600">
+              {confirmDialog.description}
+            </p>
+
+            {confirmDialog.showReasonInput && (
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Reason for rejection / revocation:
+                </label>
+                <textarea
+                  value={dialogReason}
+                  onChange={(e) => setDialogReason(e.target.value)}
+                  placeholder="Enter reason displayed on staff profile..."
+                  rows={3}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmDialog.action === 'reject') {
+                    handleUpdateStatus(confirmDialog.staffId, 'rejected', confirmDialog.staffName, dialogReason);
+                  } else if (confirmDialog.action === 'disable') {
+                    handleUpdateStatus(confirmDialog.staffId, 'disabled', confirmDialog.staffName, 'Administrative suspension');
+                  } else if (confirmDialog.action === 'approve' || confirmDialog.action === 'reactivate') {
+                    handleUpdateStatus(confirmDialog.staffId, 'approved', confirmDialog.staffName);
+                  }
+                  setConfirmDialog(null);
+                }}
+                className={`px-4 py-2 rounded-xl text-white text-xs font-bold shadow-xs ${
+                  confirmDialog.action === 'reject' 
+                    ? 'bg-rose-600 hover:bg-rose-700' 
+                    : confirmDialog.action === 'disable'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                Confirm {confirmDialog.action.toUpperCase()}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

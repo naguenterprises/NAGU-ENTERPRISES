@@ -225,7 +225,7 @@ export const ApplicantDetailsStep: React.FC<ApplicantDetailsStepProps> = ({
                 type="tel"
                 value={data.mobile}
                 onChange={(e) => handleFieldChange('mobile', e.target.value)}
-                placeholder="+91 98450 12345"
+                placeholder="+91 98765 43210"
                 className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
                   errors.mobile ? 'border-red-500 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-200 focus:border-blue-600'
                 }`}

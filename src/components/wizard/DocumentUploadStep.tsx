@@ -1,18 +1,18 @@
 import React, { useRef, useState } from 'react';
 import { UploadedDocument, RequiredDocumentDef, BusinessType, OfficeType } from '../../types';
 import { getRequiredDocumentsForFlow } from '../../data/businessTypes';
+import { DocumentManagementCard } from '../documents/DocumentManagementCard';
+import { storeDocumentBlob } from '../../services/secureDocumentVault';
 import { 
   UploadCloud, 
   FileCheck, 
-  Trash2, 
-  RefreshCw, 
-  FileText, 
-  Image, 
   ShieldCheck, 
   ArrowLeft, 
   ArrowRight,
   AlertTriangle,
-  Info
+  Info,
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
 
 interface DocumentUploadStepProps {
@@ -33,22 +33,21 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
   onBack,
 }) => {
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Dynamically compute the required checklist
   const dynamicDocDefs = getRequiredDocumentsForFlow(businessType.id, officeType);
 
-  // Helper to get uploaded document state for a def
   const getUploadedDoc = (docDefId: string): UploadedDocument | undefined => {
     return documents.find(d => d.docDefId === docDefId);
   };
 
-  const handleFileUpload = (docDef: RequiredDocumentDef, file: File) => {
+  const handleFileUpload = async (docDef: RequiredDocumentDef, file: File) => {
     // Validate size (max 5MB)
     const MAX_SIZE = 5 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      setErrorMsg(`File "${file.name}" exceeds the 5MB size limit. Please choose a smaller file.`);
+      setErrorMsg(`File "${file.name}" exceeds the 5MB size limit. Please select a smaller file.`);
       return;
     }
 
@@ -60,38 +59,36 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
     }
 
     setErrorMsg('');
+    setIsProcessing(true);
 
-    // Format size
-    const sizeFormatted = file.size > 1024 * 1024 
-      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-      : `${Math.round(file.size / 1024)} KB`;
-
-    // Create simulated data URL for preview
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-
-      const newDoc: UploadedDocument = {
-        id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        docDefId: docDef.id,
-        title: docDef.title,
+    try {
+      const docId = `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      
+      // Store raw Blob securely in browser IndexedDB (zero base64 in state)
+      const meta = await storeDocumentBlob({
+        documentId: docId,
+        applicationId: 'NE-BR-DRAFT',
+        customerId: 'usr_applicant_draft',
+        documentType: docDef.title,
         fileName: file.name,
-        fileSizeFormatted: sizeFormatted,
-        uploadDate: new Date().toISOString().split('T')[0],
-        dataUrl,
         fileType: file.type,
-        status: 'uploaded',
+        blob: file,
+      });
+
+      // Keep reference to docDefId and required flag
+      const completeMeta: UploadedDocument = {
+        ...meta,
+        docDefId: docDef.id,
         required: docDef.required,
       };
 
       const updated = documents.filter(d => d.docDefId !== docDef.id);
-      onChange([...updated, newDoc]);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleRemoveDoc = (docDefId: string) => {
-    onChange(documents.filter(d => d.docDefId !== docDefId));
+      onChange([...updated, completeMeta]);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to securely store document in vault.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const validate = () => {
@@ -127,7 +124,7 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 font-display">
-              Document Checklist & Upload
+              Document Checklist & Secure Management
             </h2>
             <p className="text-sm text-slate-600 mt-1">
               Upload clear self-attested copies of applicant, promoter, and registered office records for {businessType.name}.
@@ -159,128 +156,107 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
         </div>
       )}
 
-      {/* Dynamic Document Cards List */}
-      <div className="space-y-4">
-        {dynamicDocDefs.map((docDef) => {
-          const uploaded = getUploadedDoc(docDef.id);
-          const isUploaded = !!uploaded;
+      {/* Mandatory Statutory Requirements Checklist */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          Required Document Categories
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {dynamicDocDefs.map((def) => {
+            const uploaded = getUploadedDoc(def.id);
+            const isDone = !!uploaded;
 
-          return (
-            <div
-              key={docDef.id}
-              className={`p-5 rounded-2xl border transition-all ${
-                isUploaded
-                  ? 'bg-blue-50/30 border-blue-200'
-                  : 'bg-white border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                
-                {/* Left: Document Info */}
-                <div className="flex items-start gap-3.5">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                    isUploaded ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {uploaded?.fileType.includes('image') ? (
-                      <Image className="w-5 h-5" />
+            return (
+              <div 
+                key={def.id}
+                className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                  isDone 
+                    ? 'bg-emerald-50/40 border-emerald-300 ring-1 ring-emerald-200' 
+                    : 'bg-white border-slate-200'
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-slate-900 truncate">
+                      {def.title}
+                    </h4>
+                    {def.required ? (
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                        Mandatory
+                      </span>
                     ) : (
-                      <FileText className="w-5 h-5" />
+                      <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                        Optional
+                      </span>
                     )}
                   </div>
-
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-slate-900 text-sm sm:text-base font-display">
-                        {docDef.title}
-                      </h3>
-                      {docDef.required ? (
-                        <span className="text-[11px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">
-                          Required
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                          Optional
-                        </span>
-                      )}
-                    </div>
-                    
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {docDef.description}
-                    </p>
-
-                    {/* Uploaded File Pill */}
-                    {isUploaded && (
-                      <div className="mt-2 flex items-center gap-2 text-xs text-blue-800 bg-white border border-blue-200 px-3 py-1.5 rounded-lg w-fit">
-                        <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span className="font-medium truncate max-w-xs">{uploaded.fileName}</span>
-                        <span className="text-slate-400">·</span>
-                        <span className="text-slate-500 tabular-nums">{uploaded.fileSizeFormatted}</span>
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-xs text-slate-500 truncate mt-0.5">
+                    {def.description}
+                  </p>
                 </div>
 
-                {/* Right: Actions */}
-                <div className="flex items-center gap-2 sm:self-center shrink-0">
+                <div className="shrink-0">
                   <input
                     type="file"
-                    ref={(el) => {
-                      fileInputRefs.current[docDef.id] = el;
-                    }}
+                    ref={(el) => { fileInputRefs.current[def.id] = el; }}
                     className="hidden"
                     accept=".pdf,.jpg,.jpeg,.png"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
-                        handleFileUpload(docDef, e.target.files[0]);
+                        handleFileUpload(def, e.target.files[0]);
                       }
                     }}
                   />
 
-                  {!isUploaded ? (
+                  {!isDone ? (
                     <button
                       type="button"
-                      onClick={() => fileInputRefs.current[docDef.id]?.click()}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs transition-colors"
+                      disabled={isProcessing}
+                      onClick={() => fileInputRefs.current[def.id]?.click()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                     >
-                      <UploadCloud className="w-4 h-4" />
-                      <span>Upload Document</span>
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      <span>Upload</span>
                     </button>
                   ) : (
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRefs.current[docDef.id]?.click()}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-colors"
-                        title="Replace this document"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Replace</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDoc(docDef.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors"
-                        title="Remove uploaded document"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Remove</span>
-                      </button>
-                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Attached</span>
+                    </span>
                   )}
                 </div>
-
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
+
+      {/* PROFESSIONAL DOCUMENT MANAGEMENT CARD LIST */}
+      {documents.length > 0 && (
+        <div className="space-y-3 pt-4 border-t border-slate-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900 font-display">
+              Attached Documents ({documents.length})
+            </h3>
+            <span className="text-xs text-slate-500">
+              Encrypted & stored in secure local vault
+            </span>
+          </div>
+
+          <DocumentManagementCard
+            documents={documents}
+            applicationId="NE-BR-DRAFT"
+            onDocumentsChange={(updated) => onChange(updated)}
+          />
+        </div>
+      )}
 
       {/* Security guarantee */}
       <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3 text-slate-600 text-xs">
         <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
         <span>
-          <strong>Data Protection & UIDAI Guidelines:</strong> Your KYC documents are encrypted and accessible only by authorized Nagu Enterprises compliance associates. Personal identification numbers like Aadhaar and PAN are automatically masked in all preview manifests.
+          <strong>Statutory Compliance & Privacy Protection:</strong> KYC documents are archived securely in accordance with Ministry of Corporate Affairs and UIDAI privacy directives. Personal identification numbers like Aadhaar and PAN are automatically masked in all preview manifests.
         </span>
       </div>
 
@@ -289,7 +265,7 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+          className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back</span>
@@ -298,7 +274,7 @@ export const DocumentUploadStep: React.FC<DocumentUploadStepProps> = ({
         <button
           type="button"
           onClick={handleNext}
-          className="flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-md transition-all"
+          className="flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-md transition-all cursor-pointer"
         >
           <span>Save & Continue to Review</span>
           <ArrowRight className="w-4 h-4" />
